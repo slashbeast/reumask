@@ -4,39 +4,37 @@ use std::path::{Path, PathBuf};
 use std::os::unix::fs::PermissionsExt;
 
 fn reumask(umask: u32, path: &Path, file_type: &fs::FileType, file_permissions: &fs::Permissions) {
-    /*
-     * TODO:
-     *   - add support for sticky, suid and sgid preserving.
-     */
+    let current_permissions = file_permissions.mode() & 0o7777;
 
-    let current_permissions = file_permissions.mode() & 0o777;
+    // Preserve suid, sgid and sticky bits, if present.
+    let special_bits = current_permissions & 0o7000;
 
     let mode = 0o7777 ^ umask;
 
-    let mut permissions = fs::Permissions::from_mode(mode);
-
-    if file_type.is_file() {
-        // Add executable bit to owner, group and others if the owner mode 
-        // had it and if the new umask allows for it. so files with 700
-        // mode on umask 022 will turn into 755 instead of 644.
-        let file_mode = if current_permissions & 0o100 != 0 {
+    let new_mode: u32;
+    if file_type.is_dir() {
+        new_mode = mode & 0o777;
+    } else {
+        // Regular files, block and char devices, fifo and sockets.
+        // Assume that if owner had executable bit then we want it on 
+        // group and others too if umask has not filtred them out already.
+        new_mode = if current_permissions & 0o100 != 0 {
             mode & 0o777
         } else {
             mode & 0o666
         };
-
-        permissions.set_mode(file_mode);
-    } else if file_type.is_dir() {
-        permissions.set_mode(mode & 0o777);
     }
 
-    let new_permissions = permissions.mode() & 0o777;
+    // Add the preserved special bits (suid, sgid, sticky) if any.
+    let new_permissions = new_mode | special_bits & 0o7777;
 
     if current_permissions != new_permissions {
         println!(
             "[{:o} -> {:o}] {}",
             current_permissions, new_permissions, path.display()
         );
+
+        let permissions = fs::Permissions::from_mode(new_permissions);
         fs::set_permissions(path, permissions).unwrap();
     }
 }

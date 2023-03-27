@@ -7,7 +7,7 @@ This is a tiny tool written in Rust to bump filesystem permissions as if all the
 
 In order to preserve executable permissions the tool will look up current permissions of file, and if it has executable bit set on owner, it will then enable it for owner, group and others and after that apply the umask on the top of it.
 
-Note that as for this very moment the tool will *not* preserve sticky, suid and sgid bits on files and directories, be mindful of it as running it as root on `/` mount point will most likely lead to a broken system.
+Note that running it as root on `/` mount point will most likely lead to a broken system.
 
 Usecase
 --------
